@@ -526,6 +526,97 @@
   }
 
   .empty-state svg { opacity: 0.2; margin-bottom: 0.75rem; }
+
+  .history-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-date {
+    font-size: 0.78rem;
+    color: var(--text2);
+    font-weight: 500;
+  }
+
+  .history-main {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .history-field {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.7rem;
+    min-height: 58px;
+  }
+
+  .history-field.wide {
+    grid-column: span 2;
+  }
+
+  .history-label {
+    font-size: 0.62rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .history-value {
+    font-size: 0.9rem;
+    color: var(--text);
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  .history-value.location {
+    color: var(--accent);
+  }
+
+  .history-count {
+    font-size: 0.75rem;
+    color: var(--text2);
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 760px) {
+    .history-main {
+      grid-template-columns: 1fr 1fr;
+    }
+    .history-field.wide {
+      grid-column: span 2;
+    }
+  }
+
+  @media (max-width: 460px) {
+    .history-main {
+      grid-template-columns: 1fr;
+    }
+    .history-field.wide {
+      grid-column: span 1;
+    }
+    .history-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -777,15 +868,6 @@
   <div class="config-section">
 
     <div class="card">
-      <div class="config-title">URL de Google Apps Script</div>
-      <div class="config-desc">Pegá la URL de tu Web App de Apps Script. La app envía los datos por POST en formato JSON.</div>
-      <div class="field" style="margin-bottom:0.75rem">
-        <input type="url" id="appsScriptUrl" placeholder="https://script.google.com/macros/s/..." oninput="saveConfig()">
-      </div>
-      <button class="btn btn-primary" onclick="testConnection()">Probar conexión</button>
-    </div>
-
-    <div class="card">
       <div class="config-title">Formato del QR / código de barras</div>
       <div class="config-desc">La app espera un código con esta estructura. Podés usar cualquier separador que configures abajo.</div>
       <div class="tag-example" id="formatExample">LOTE:A123|PROD:Tinta Azul|REM:0001-0045|PAL:3|CANT:200</div>
@@ -810,34 +892,6 @@
           </select>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="config-title">Apps Script — Código de ejemplo</div>
-      <div class="config-desc">Creá un nuevo proyecto en <strong>script.google.com</strong>, pegá este código, publicá como Web App con acceso "Cualquier persona".</div>
-      <div class="tag-example" style="color: var(--text2); white-space: pre; overflow-x: auto; font-size:0.68rem; line-height:1.6">function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
-  var ss = SpreadsheetApp
-    .openById("TU_SPREADSHEET_ID");
-  var sheet = ss.getSheetByName("Movimientos")
-    || ss.insertSheet("Movimientos");
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow([
-      "Fecha","Hora","Lote","Producto",
-      "Remito","Pallet","Cantidad","Ubicación"
-    ]);
-  }
-  var now = new Date();
-  sheet.appendRow([
-    Utilities.formatDate(now, "America/Argentina/Buenos_Aires", "dd/MM/yyyy"),
-    Utilities.formatDate(now, "America/Argentina/Buenos_Aires", "HH:mm:ss"),
-    data.lote, data.producto, data.remito,
-    data.pallet, data.cantidad, data.ubicacion
-  ]);
-  return ContentService
-    .createTextOutput(JSON.stringify({ok:true}))
-    .setMimeType(ContentService.MimeType.JSON);
-}</div>
     </div>
 
   </div>
@@ -904,6 +958,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyY2Qj-81gFhU79CGdZ3HSs8iv_r1Mf87cJNh7MJQOtZoH-yTyeSBAC2n_OpXYq3-ZMhQ/exec';
 var scanned = { lote:'', producto:'', remito:'', pallet:'', cantidad:'' };
 var ubicacion = '';
 var html5Qr1 = null, html5Qr2 = null;
@@ -911,8 +966,9 @@ var scanning1 = false, scanning2 = false;
 var history = JSON.parse(localStorage.getItem('scanHistory') || '[]');
 
 function loadConfig() {
-  var url = localStorage.getItem('appsScriptUrl') || '';
-  document.getElementById('appsScriptUrl').value = url;
+  var url = APPS_SCRIPT_URL;
+  var urlInput = document.getElementById('appsScriptUrl');
+  if (urlInput) urlInput.value = url;
   document.getElementById('sepField').value = localStorage.getItem('sepField') || '|';
   document.getElementById('sepKV').value = localStorage.getItem('sepKV') || ':';
   updateStatusBadge(url);
@@ -920,10 +976,9 @@ function loadConfig() {
 }
 
 function saveConfig() {
-  localStorage.setItem('appsScriptUrl', document.getElementById('appsScriptUrl').value.trim());
   localStorage.setItem('sepField', document.getElementById('sepField').value);
   localStorage.setItem('sepKV', document.getElementById('sepKV').value);
-  updateStatusBadge(document.getElementById('appsScriptUrl').value.trim());
+  updateStatusBadge(APPS_SCRIPT_URL);
 }
 
 function updateStatusBadge(url) {
@@ -1163,7 +1218,7 @@ function resetStepIndicators() {
 }
 
 function sendToSheets() {
-  var url = localStorage.getItem('appsScriptUrl');
+  var url = APPS_SCRIPT_URL;
   if (!url || !url.includes('script.google.com')) {
     showToast('Configurá la URL de Apps Script primero', 'error');
     switchTab('config');
@@ -1220,8 +1275,7 @@ function sendToSheets() {
 }
 
 function testConnection() {
-  var url = document.getElementById('appsScriptUrl').value.trim();
-  if (!url) { showToast('Ingresá una URL primero', 'error'); return; }
+  var url = APPS_SCRIPT_URL;
   var img = new Image();
   img.onload = img.onerror = function() { showToast('Conexión OK ✓', 'success'); };
   img.src = url + '?test=1&t=' + Date.now();
@@ -1249,7 +1303,7 @@ function resetAll() {
 
 
 function renderHistory() {
-  var url = localStorage.getItem('appsScriptUrl');
+  var url = APPS_SCRIPT_URL;
   var list = document.getElementById('historyList');
 
   if (!url || !url.includes('script.google.com')) {
@@ -1259,6 +1313,9 @@ function renderHistory() {
 
   list.innerHTML = '<div class="empty-state"><p style="color:var(--accent)">Cargando...</p></div>';
 
+  var icon = document.getElementById('refreshIcon');
+  if (icon) icon.style.animation = 'spin 1s linear infinite';
+
   var today = new Date().toISOString().split('T')[0];
   var hace30 = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
 
@@ -1266,7 +1323,13 @@ function renderHistory() {
 
   window[callbackName] = function(data) {
     delete window[callbackName];
-    script.remove();
+    if (script && script.parentNode) script.parentNode.removeChild(script);
+    if (icon) icon.style.animation = '';
+
+    if (!data || data.ok === false) {
+      list.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">Error al cargar historial</p><small>' + escapeHtml(data && data.error ? data.error : '') + '</small></div>';
+      return;
+    }
 
     if (!data.rows || !data.rows.length) {
       list.innerHTML = '<div class="empty-state"><p>Sin registros en los últimos 30 días</p></div>';
@@ -1275,16 +1338,38 @@ function renderHistory() {
 
     var rows = data.rows.slice().reverse().slice(0, 50);
 
-    list.innerHTML = rows.map(function(r) {
-      return '<div class="history-item">' +
-        '<div class="h-time">' + (r[0] || '') + ' ' + (r[1] || '') + '</div>' +
-        '<div class="h-info">' +
-        '<span class="badge">' + (r[2] || '?') + '</span>' +
-        '<span class="badge">' + (r[3] || '?') + '</span>' +
-        '<span class="badge">x' + (r[6] || '?') + '</span>' +
-        '<span class="badge loc">→ ' + (r[7] || '?') + '</span>' +
-        '</div></div>';
+    var html = '<div class="history-count">' + rows.length + ' movimiento(s) encontrado(s)</div>';
+
+    html += rows.map(function(r, idx) {
+      var fecha = r[0] || '';
+      var hora = r[1] || '';
+      var lote = r[2] || '—';
+      var producto = r[3] || '—';
+      var remito = r[4] || '—';
+      var pallet = r[5] || '—';
+      var cantidad = r[6] || '—';
+      var ubicacion = r[7] || '—';
+
+      return '<div class="history-card">' +
+        '<div class="history-head">' +
+          '<div>' +
+            '<div class="history-label">Fecha y hora</div>' +
+            '<div class="history-date">' + escapeHtml(fecha) + ' · ' + escapeHtml(hora) + '</div>' +
+          '</div>' +
+          '<span class="status-pill ready">Movimiento #' + (idx + 1) + '</span>' +
+        '</div>' +
+        '<div class="history-main">' +
+          '<div class="history-field"><div class="history-label">Lote</div><div class="history-value">' + escapeHtml(lote) + '</div></div>' +
+          '<div class="history-field wide"><div class="history-label">Producto</div><div class="history-value">' + escapeHtml(producto) + '</div></div>' +
+          '<div class="history-field"><div class="history-label">Cantidad</div><div class="history-value">x' + escapeHtml(cantidad) + '</div></div>' +
+          '<div class="history-field"><div class="history-label">Remito</div><div class="history-value">' + escapeHtml(remito) + '</div></div>' +
+          '<div class="history-field"><div class="history-label">Pallet</div><div class="history-value">' + escapeHtml(pallet) + '</div></div>' +
+          '<div class="history-field wide"><div class="history-label">Ubicación</div><div class="history-value location">' + escapeHtml(ubicacion) + '</div></div>' +
+        '</div>' +
+      '</div>';
     }).join('');
+
+    list.innerHTML = html;
   };
 
   var script = document.createElement('script');
@@ -1292,12 +1377,12 @@ function renderHistory() {
 
   script.onerror = function() {
     delete window[callbackName];
+    if (icon) icon.style.animation = '';
     list.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">Error al cargar historial</p></div>';
   };
 
   document.body.appendChild(script);
 }
-
 
 function showToast(msg, type) {
   var t = document.getElementById('toast');
@@ -1344,7 +1429,7 @@ function setFmt(f) {
 }
 
 function previewExport() {
-  var url = localStorage.getItem('appsScriptUrl');
+  var url = APPS_SCRIPT_URL;
   if (!url) { showToast('Configurá la URL de Apps Script primero', 'error'); return; }
 
   var desde = document.getElementById('exp-desde').value;
