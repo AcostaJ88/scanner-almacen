@@ -557,6 +557,12 @@
     </svg>
     Historial
   </button>
+  <button class="tab" onclick="switchTab('export')">
+    <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Exportar
+  </button>
   <button class="tab" onclick="switchTab('config')">
     <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
       <path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/>
@@ -832,6 +838,63 @@
   </div>
 </div>
 
+<!-- EXPORT PAGE -->
+<div id="page-export" class="page">
+  <div style="padding: 1.25rem;">
+
+    <div class="card">
+      <div class="section-title">Filtrar por período</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha desde</label>
+          <input type="date" id="exp-desde">
+        </div>
+        <div class="field">
+          <label>Fecha hasta</label>
+          <input type="date" id="exp-hasta">
+        </div>
+      </div>
+      <div style="display:flex; gap:0.6rem; margin-top:0.25rem;">
+        <button class="btn btn-outline" style="flex:1; font-size:0.75rem; padding:0.55rem" onclick="setQuickRange('hoy')">Hoy</button>
+        <button class="btn btn-outline" style="flex:1; font-size:0.75rem; padding:0.55rem" onclick="setQuickRange('semana')">Esta semana</button>
+        <button class="btn btn-outline" style="flex:1; font-size:0.75rem; padding:0.55rem" onclick="setQuickRange('mes')">Este mes</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Formato de exportación</div>
+      <div style="display:flex; gap:0.6rem;">
+        <button class="btn btn-outline" style="flex:1" id="btnFmtCSV" onclick="setFmt('csv')">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="1" width="13" height="13" rx="2"/><path d="M5 1v13M1 5h13M1 9h13"/></svg>
+          CSV
+        </button>
+        <button class="btn btn-primary" style="flex:1" id="btnFmtXLSX" onclick="setFmt('xlsx')">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="1" width="13" height="13" rx="2"/><path d="M4 4l7 7M11 4l-7 7"/></svg>
+          Excel
+        </button>
+      </div>
+    </div>
+
+    <div id="exp-preview" class="card" style="display:none">
+      <div class="section-title">Vista previa</div>
+      <div id="exp-count" style="font-size:0.85rem; color:var(--text2); margin-bottom:0.75rem"></div>
+      <div id="exp-table-wrap" style="overflow-x:auto; font-size:0.72rem;">
+        <table id="exp-table" style="width:100%; border-collapse:collapse;"></table>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="previewExport()" style="margin-bottom:0.6rem">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><path d="M13 13l-3-3"/></svg>
+      Buscar registros
+    </button>
+    <button class="btn btn-success" id="btnDownload" onclick="downloadExport()" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/><polyline points="5 7 8 10 11 7"/><line x1="8" y1="10" x2="8" y2="2"/></svg>
+      Descargar archivo
+    </button>
+
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -881,14 +944,13 @@ function updateFormatExample() {
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(function(t,i){
-    t.classList.toggle('active', ['scan','history','config'][i] === name);
+    t.classList.toggle('active', ['scan','history','export','config'][i] === name);
   });
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   document.getElementById('page-'+name).classList.add('active');
   if (name === 'history') renderHistory();
-  if (name !== 'scan') {
-    stopScanner(1); stopScanner(2);
-  }
+  if (name === 'export') initExport();
+  if (name !== 'scan') { stopScanner(1); stopScanner(2); }
 }
 
 function toggleScanner(n) {
@@ -1203,6 +1265,129 @@ function showToast(msg, type) {
   t.className = 'toast ' + (type||'');
   t.classList.add('show');
   setTimeout(function() { t.classList.remove('show'); }, 2800);
+}
+
+var exportFmt = 'xlsx';
+var exportData = [];
+
+function initExport() {
+  var today = new Date().toISOString().split('T')[0];
+  var firstDay = today.substring(0,8) + '01';
+  document.getElementById('exp-desde').value = firstDay;
+  document.getElementById('exp-hasta').value = today;
+  document.getElementById('exp-preview').style.display = 'none';
+  document.getElementById('btnDownload').style.display = 'none';
+}
+
+function setQuickRange(r) {
+  var now = new Date();
+  var desde, hasta = now.toISOString().split('T')[0];
+  if (r === 'hoy') {
+    desde = hasta;
+  } else if (r === 'semana') {
+    var d = new Date(now);
+    d.setDate(d.getDate() - d.getDay() + 1);
+    desde = d.toISOString().split('T')[0];
+  } else {
+    desde = hasta.substring(0,8) + '01';
+  }
+  document.getElementById('exp-desde').value = desde;
+  document.getElementById('exp-hasta').value = hasta;
+}
+
+function setFmt(f) {
+  exportFmt = f;
+  document.getElementById('btnFmtCSV').className = f === 'csv' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('btnFmtXLSX').className = f === 'xlsx' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('btnFmtCSV').style.flex = '1';
+  document.getElementById('btnFmtXLSX').style.flex = '1';
+}
+
+function previewExport() {
+  var url = localStorage.getItem('appsScriptUrl');
+  if (!url) { showToast('Configurá la URL de Apps Script primero', 'error'); return; }
+
+  var desde = document.getElementById('exp-desde').value;
+  var hasta = document.getElementById('exp-hasta').value;
+  if (!desde || !hasta) { showToast('Seleccioná un período', 'error'); return; }
+
+  showToast('Buscando registros...', '');
+
+  var fetchUrl = url + '?action=export&desde=' + desde + '&hasta=' + hasta + '&t=' + Date.now();
+
+  fetch(fetchUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.rows || !data.rows.length) {
+        showToast('Sin registros en ese período', 'error');
+        document.getElementById('exp-preview').style.display = 'none';
+        document.getElementById('btnDownload').style.display = 'none';
+        return;
+      }
+      exportData = data.rows;
+      renderPreview(data.rows);
+      document.getElementById('exp-count').textContent = data.rows.length + ' registro(s) encontrado(s)';
+      document.getElementById('exp-preview').style.display = 'block';
+      document.getElementById('btnDownload').style.display = 'flex';
+      showToast(data.rows.length + ' registros encontrados ✓', 'success');
+    })
+    .catch(function() {
+      showToast('Error al consultar. Verificá la URL.', 'error');
+    });
+}
+
+function renderPreview(rows) {
+  var cols = ['Fecha','Hora','Lote','Producto','Remito','Pallet','Cantidad','Ubicación'];
+  var html = '<tr style="border-bottom:1px solid var(--border)">';
+  cols.forEach(function(c) {
+    html += '<th style="padding:4px 8px;text-align:left;color:var(--text2);font-weight:500;white-space:nowrap">' + c + '</th>';
+  });
+  html += '</tr>';
+  rows.slice(0,10).forEach(function(r) {
+    html += '<tr style="border-bottom:0.5px solid var(--border)">';
+    r.forEach(function(cell) {
+      html += '<td style="padding:4px 8px;white-space:nowrap;color:var(--text)">' + (cell||'—') + '</td>';
+    });
+    html += '</tr>';
+  });
+  if (rows.length > 10) {
+    html += '<tr><td colspan="8" style="padding:6px 8px;color:var(--text2);font-size:0.7rem">... y ' + (rows.length-10) + ' más</td></tr>';
+  }
+  document.getElementById('exp-table').innerHTML = html;
+}
+
+function downloadExport() {
+  if (!exportData.length) { showToast('Primero buscá los registros', 'error'); return; }
+  var cols = ['Fecha','Hora','Lote','Producto','Remito','Pallet','Cantidad','Ubicación'];
+  var desde = document.getElementById('exp-desde').value;
+  var hasta = document.getElementById('exp-hasta').value;
+  var filename = 'movimientos_' + desde + '_' + hasta;
+
+  if (exportFmt === 'csv') {
+    var csv = cols.join(',') + '\n';
+    exportData.forEach(function(r) {
+      csv += r.map(function(c) { return '"' + (c||'').toString().replace(/"/g,'""') + '"'; }).join(',') + '\n';
+    });
+    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, filename + '.csv');
+  } else {
+    var tsv = cols.join('\t') + '\n';
+    exportData.forEach(function(r) {
+      tsv += r.map(function(c) { return (c||'').toString(); }).join('\t') + '\n';
+    });
+    var blob = new Blob([tsv], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    triggerDownload(blob, filename + '.xls');
+  }
+  showToast('Descargando archivo ✓', 'success');
+}
+
+function triggerDownload(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 }
 
 loadConfig();
