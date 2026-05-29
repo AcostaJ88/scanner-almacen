@@ -287,6 +287,7 @@
 
   .manual-fields.open { display: block; }
 
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes slideDown {
     from { opacity: 0; transform: translateY(-8px); }
     to { opacity: 1; transform: translateY(0); }
@@ -752,16 +753,20 @@
 <div id="page-history" class="page">
   <div style="padding: 1.25rem;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
-      <div class="section-title" style="margin:0">Últimos envíos</div>
-      <button onclick="clearHistory()" style="background:none;border:none;color:var(--text2);font-size:0.75rem;cursor:pointer">Limpiar</button>
+      <div class="section-title" style="margin:0">Últimos 50 movimientos</div>
+      <button onclick="renderHistory()" id="btnRefreshHistory" style="background:none;border:none;color:var(--accent);font-size:0.75rem;cursor:pointer;display:flex;align-items:center;gap:4px">
+        <svg id="refreshIcon" width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M11 2.5A5.5 5.5 0 1 0 12 7"/><polyline points="12 2 12 5.5 8.5 5.5"/>
+        </svg>
+        Actualizar
+      </button>
     </div>
     <div id="historyList">
       <div class="empty-state">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="20" cy="20" r="16"/>
-          <path d="M20 13v7l4 4"/>
+          <circle cx="20" cy="20" r="16"/><path d="M20 13v7l4 4"/>
         </svg>
-        <p>Sin registros todavía</p>
+        <p>Tocá "Actualizar" para cargar</p>
       </div>
     </div>
   </div>
@@ -1243,20 +1248,45 @@ function resetAll() {
 }
 
 function renderHistory() {
+  var url = localStorage.getItem('appsScriptUrl');
   var list = document.getElementById('historyList');
-  if (!history.length) {
-    list.innerHTML = '<div class="empty-state"><svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="20" cy="20" r="16"/><path d="M20 13v7l4 4"/></svg><p>Sin registros todavía</p></div>';
+  if (!url || !url.includes('script.google.com')) {
+    list.innerHTML = '<div class="empty-state"><svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="20" cy="20" r="16"/><path d="M20 13v7l4 4"/></svg><p>Configurá la URL de Apps Script primero</p></div>';
     return;
   }
-  list.innerHTML = history.map(function(r) {
-    return '<div class="history-item"><div class="h-time">' + (r._time || '') + ' — ' + (r.timestamp ? new Date(r.timestamp).toLocaleDateString('es-AR') : '') + '</div><div class="h-info"><span class="badge">' + (r.lote||'?') + '</span><span class="badge">' + (r.producto||'?') + '</span><span class="badge">x' + (r.cantidad||'?') + '</span><span class="badge loc">→ ' + (r.ubicacion||'?') + '</span></div></div>';
-  }).join('');
-}
 
-function clearHistory() {
-  history = [];
-  localStorage.removeItem('scanHistory');
-  renderHistory();
+  list.innerHTML = '<div class="empty-state"><p style="color:var(--accent)">Cargando...</p></div>';
+  var icon = document.getElementById('refreshIcon');
+  if (icon) icon.style.animation = 'spin 1s linear infinite';
+
+  var today = new Date().toISOString().split('T')[0];
+  var hace30 = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+  var fetchUrl = url + '?action=export&desde=' + hace30 + '&hasta=' + today + '&t=' + Date.now();
+
+  fetch(fetchUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (icon) icon.style.animation = '';
+      if (!data.rows || !data.rows.length) {
+        list.innerHTML = '<div class="empty-state"><svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="20" cy="20" r="16"/><path d="M20 13v7l4 4"/></svg><p>Sin registros en los últimos 30 días</p></div>';
+        return;
+      }
+      var rows = data.rows.slice().reverse().slice(0, 50);
+      list.innerHTML = rows.map(function(r) {
+        return '<div class="history-item">' +
+          '<div class="h-time">' + (r[0]||'') + ' ' + (r[1]||'') + '</div>' +
+          '<div class="h-info">' +
+          '<span class="badge">' + (r[2]||'?') + '</span>' +
+          '<span class="badge">' + (r[3]||'?') + '</span>' +
+          '<span class="badge">x' + (r[6]||'?') + '</span>' +
+          '<span class="badge loc">→ ' + (r[7]||'?') + '</span>' +
+          '</div></div>';
+      }).join('');
+    })
+    .catch(function() {
+      if (icon) icon.style.animation = '';
+      list.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">Error al cargar. Verificá la conexión.</p></div>';
+    });
 }
 
 function showToast(msg, type) {
