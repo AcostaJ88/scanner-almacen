@@ -48,6 +48,14 @@
 
   header svg { flex-shrink: 0; }
 
+  header .brand-logo {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 6px;
+  }
+
   header h1 {
     font-size: 1rem;
     font-weight: 600;
@@ -622,15 +630,7 @@
 <body>
 
 <header>
-  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-    <rect x="1" y="1" width="8" height="8" rx="1.5" stroke="#4f7cff" stroke-width="1.5"/>
-    <rect x="13" y="1" width="8" height="8" rx="1.5" stroke="#4f7cff" stroke-width="1.5"/>
-    <rect x="1" y="13" width="8" height="8" rx="1.5" stroke="#4f7cff" stroke-width="1.5"/>
-    <rect x="13" y="13" width="3" height="3" rx="0.5" fill="#4f7cff"/>
-    <rect x="18" y="13" width="3" height="3" rx="0.5" fill="#4f7cff"/>
-    <rect x="13" y="18" width="3" height="3" rx="0.5" fill="#4f7cff"/>
-    <rect x="18" y="18" width="3" height="3" rx="0.5" fill="#4f7cff"/>
-  </svg>
+  <img src="logo.png" alt="Logo" class="brand-logo">
   <h1>Escáner Almacén</h1>
   <span id="statusBadge">Sin configurar</span>
 </header>
