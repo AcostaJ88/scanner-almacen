@@ -526,39 +526,6 @@
   }
 
   .empty-state svg { opacity: 0.2; margin-bottom: 0.75rem; }
-
-  .lock-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.72);
-    z-index: 2000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 1.25rem;
-  }
-  .lock-overlay.show { display: flex; }
-  .lock-modal {
-    width: 100%;
-    max-width: 360px;
-    background: var(--bg2);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    padding: 1.25rem;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-  }
-  .lock-title {
-    font-size: 1rem;
-    font-weight: 700;
-    margin-bottom: 0.35rem;
-  }
-  .lock-desc {
-    font-size: 0.8rem;
-    color: var(--text2);
-    line-height: 1.45;
-    margin-bottom: 1rem;
-  }
-
 </style>
 </head>
 <body>
@@ -933,28 +900,6 @@
   </div>
 </div>
 
-
-<!-- Login Ajustes -->
-<div class="lock-overlay" id="configLogin">
-  <div class="lock-modal">
-    <div class="lock-title">Acceso a Ajustes</div>
-    <div class="lock-desc">Ingresá usuario y contraseña para modificar la configuración.</div>
-
-    <div class="field" style="margin-bottom:0.75rem">
-      <label>Usuario</label>
-      <input type="text" id="loginUser" autocomplete="username" placeholder="Usuario">
-    </div>
-
-    <div class="field" style="margin-bottom:0.9rem">
-      <label>Contraseña</label>
-      <input type="password" id="loginPass" autocomplete="current-password" placeholder="Contraseña" onkeydown="if(event.key==='Enter') checkConfigLogin()">
-    </div>
-
-    <button class="btn btn-primary" onclick="checkConfigLogin()">Ingresar</button>
-    <button class="btn btn-outline" onclick="closeConfigLogin()">Cancelar</button>
-  </div>
-</div>
-
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -964,64 +909,6 @@ var ubicacion = '';
 var html5Qr1 = null, html5Qr2 = null;
 var scanning1 = false, scanning2 = false;
 var history = JSON.parse(localStorage.getItem('scanHistory') || '[]');
-
-
-function openConfigLogin() {
-  document.getElementById('configLogin').classList.add('show');
-  setTimeout(function(){ document.getElementById('loginUser').focus(); }, 50);
-}
-
-function closeConfigLogin() {
-  document.getElementById('configLogin').classList.remove('show');
-  document.getElementById('loginUser').value = '';
-  document.getElementById('loginPass').value = '';
-}
-
-function checkConfigLogin() {
-  var u = document.getElementById('loginUser').value.trim();
-  var p = document.getElementById('loginPass').value.trim();
-
-  if (u === 'Humal' && p === 'Humal') {
-    sessionStorage.setItem('configUnlocked', '1');
-    closeConfigLogin();
-    switchTab('config');
-    showToast('Ajustes desbloqueados ✓', 'success');
-  } else {
-    showToast('Usuario o contraseña incorrectos', 'error');
-  }
-}
-
-function jsonpRequest(url) {
-  return new Promise(function(resolve, reject) {
-    var callbackName = 'jsonp_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-    var sep = url.indexOf('?') >= 0 ? '&' : '?';
-    var script = document.createElement('script');
-    var timer = setTimeout(function() {
-      cleanup();
-      reject(new Error('Tiempo agotado'));
-    }, 12000);
-
-    function cleanup() {
-      clearTimeout(timer);
-      if (script.parentNode) script.parentNode.removeChild(script);
-      try { delete window[callbackName]; } catch(e) { window[callbackName] = undefined; }
-    }
-
-    window[callbackName] = function(data) {
-      cleanup();
-      resolve(data);
-    };
-
-    script.onerror = function() {
-      cleanup();
-      reject(new Error('Error de conexión'));
-    };
-
-    script.src = url + sep + 'callback=' + encodeURIComponent(callbackName);
-    document.body.appendChild(script);
-  });
-}
-
 
 function loadConfig() {
   var url = localStorage.getItem('appsScriptUrl') || '';
@@ -1061,10 +948,6 @@ function updateFormatExample() {
 }
 
 function switchTab(name) {
-  if (name === 'config' && sessionStorage.getItem('configUnlocked') !== '1') {
-    openConfigLogin();
-    return;
-  }
   document.querySelectorAll('.tab').forEach(function(t,i){
     t.classList.toggle('active', ['scan','history','export','config'][i] === name);
   });
@@ -1364,46 +1247,57 @@ function resetAll() {
   resetStepIndicators();
 }
 
+
 function renderHistory() {
   var url = localStorage.getItem('appsScriptUrl');
   var list = document.getElementById('historyList');
+
   if (!url || !url.includes('script.google.com')) {
-    list.innerHTML = '<div class="empty-state"><svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="20" cy="20" r="16"/><path d="M20 13v7l4 4"/></svg><p>Configurá la URL de Apps Script primero</p></div>';
+    list.innerHTML = '<div class="empty-state"><p>Configurá la URL de Apps Script primero</p></div>';
     return;
   }
 
   list.innerHTML = '<div class="empty-state"><p style="color:var(--accent)">Cargando...</p></div>';
-  var icon = document.getElementById('refreshIcon');
-  if (icon) icon.style.animation = 'spin 1s linear infinite';
 
   var today = new Date().toISOString().split('T')[0];
   var hace30 = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
-  var fetchUrl = url + '?action=export&desde=' + hace30 + '&hasta=' + today + '&t=' + Date.now();
 
-  jsonpRequest(fetchUrl)
-    .then(function(data) {
-      if (icon) icon.style.animation = '';
-      if (!data.rows || !data.rows.length) {
-        list.innerHTML = '<div class="empty-state"><svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="20" cy="20" r="16"/><path d="M20 13v7l4 4"/></svg><p>Sin registros en los últimos 30 días</p></div>';
-        return;
-      }
-      var rows = data.rows.slice().reverse().slice(0, 50);
-      list.innerHTML = rows.map(function(r) {
-        return '<div class="history-item">' +
-          '<div class="h-time">' + (r[0]||'') + ' ' + (r[1]||'') + '</div>' +
-          '<div class="h-info">' +
-          '<span class="badge">' + (r[2]||'?') + '</span>' +
-          '<span class="badge">' + (r[3]||'?') + '</span>' +
-          '<span class="badge">x' + (r[6]||'?') + '</span>' +
-          '<span class="badge loc">→ ' + (r[7]||'?') + '</span>' +
-          '</div></div>';
-      }).join('');
-    })
-    .catch(function() {
-      if (icon) icon.style.animation = '';
-      list.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">Error al cargar. Verificá la conexión o permisos del Web App.</p></div>';
-    });
+  var callbackName = 'histCallback_' + Date.now();
+
+  window[callbackName] = function(data) {
+    delete window[callbackName];
+    script.remove();
+
+    if (!data.rows || !data.rows.length) {
+      list.innerHTML = '<div class="empty-state"><p>Sin registros en los últimos 30 días</p></div>';
+      return;
+    }
+
+    var rows = data.rows.slice().reverse().slice(0, 50);
+
+    list.innerHTML = rows.map(function(r) {
+      return '<div class="history-item">' +
+        '<div class="h-time">' + (r[0] || '') + ' ' + (r[1] || '') + '</div>' +
+        '<div class="h-info">' +
+        '<span class="badge">' + (r[2] || '?') + '</span>' +
+        '<span class="badge">' + (r[3] || '?') + '</span>' +
+        '<span class="badge">x' + (r[6] || '?') + '</span>' +
+        '<span class="badge loc">→ ' + (r[7] || '?') + '</span>' +
+        '</div></div>';
+    }).join('');
+  };
+
+  var script = document.createElement('script');
+  script.src = url + '?action=export&desde=' + hace30 + '&hasta=' + today + '&callback=' + callbackName + '&t=' + Date.now();
+
+  script.onerror = function() {
+    delete window[callbackName];
+    list.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">Error al cargar historial</p></div>';
+  };
+
+  document.body.appendChild(script);
 }
+
 
 function showToast(msg, type) {
   var t = document.getElementById('toast');
@@ -1461,7 +1355,8 @@ function previewExport() {
 
   var fetchUrl = url + '?action=export&desde=' + desde + '&hasta=' + hasta + '&t=' + Date.now();
 
-  jsonpRequest(fetchUrl)
+  fetch(fetchUrl)
+    .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.rows || !data.rows.length) {
         showToast('Sin registros en ese período', 'error');
@@ -1477,7 +1372,7 @@ function previewExport() {
       showToast(data.rows.length + ' registros encontrados ✓', 'success');
     })
     .catch(function() {
-      showToast('Error al consultar. Verificá URL y permisos del Web App.', 'error');
+      showToast('Error al consultar. Verificá la URL.', 'error');
     });
 }
 
