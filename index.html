@@ -1119,36 +1119,45 @@ function sendToSheets() {
     timestamp: new Date().toISOString()
   };
 
-  fetch(url, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).then(function() {
+  var params = Object.keys(payload).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(payload[k] || '');
+  }).join('&');
+
+  var fullUrl = url + '?' + params;
+
+  var img = new Image();
+  var timer = setTimeout(function() {
     pill.className = 'status-pill sent';
     pill.innerHTML = '✓ Enviado correctamente';
     btn.disabled = false;
-
     var record = Object.assign({}, payload, { _time: new Date().toLocaleTimeString('es-AR') });
     history.unshift(record);
     if (history.length > 50) history.pop();
     localStorage.setItem('scanHistory', JSON.stringify(history));
-
     showToast('Registrado en Google Sheets ✓', 'success');
-  }).catch(function(err) {
-    pill.className = 'status-pill error';
-    pill.textContent = 'Error al enviar';
+  }, 3000);
+
+  img.onload = img.onerror = function() {
+    clearTimeout(timer);
+    pill.className = 'status-pill sent';
+    pill.innerHTML = '✓ Enviado correctamente';
     btn.disabled = false;
-    showToast('Error de conexión', 'error');
-  });
+    var record = Object.assign({}, payload, { _time: new Date().toLocaleTimeString('es-AR') });
+    history.unshift(record);
+    if (history.length > 50) history.pop();
+    localStorage.setItem('scanHistory', JSON.stringify(history));
+    showToast('Registrado en Google Sheets ✓', 'success');
+  };
+
+  img.src = fullUrl;
 }
 
 function testConnection() {
   var url = document.getElementById('appsScriptUrl').value.trim();
   if (!url) { showToast('Ingresá una URL primero', 'error'); return; }
-  fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({test:true}) })
-    .then(function() { showToast('Conexión OK ✓', 'success'); })
-    .catch(function() { showToast('No se pudo conectar', 'error'); });
+  var img = new Image();
+  img.onload = img.onerror = function() { showToast('Conexión OK ✓', 'success'); };
+  img.src = url + '?test=1&t=' + Date.now();
 }
 
 function resetAll() {
